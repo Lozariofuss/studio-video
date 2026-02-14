@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio AutoZik - Upload</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-image: radial-gradient(circle at top right, #312e81, transparent 40%), radial-gradient(circle at bottom left, #be185d, transparent 40%);
+        }
+
+        .container {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 3rem;
+            border-radius: 24px;
+            width: 90%;
+            max-width: 600px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        h1 { font-weight: 800; margin-bottom: 0.5rem; background: linear-gradient(to right, #818cf8, #e879f9); -webkit-background-clip: text; color: transparent; }
+        p.subtitle { color: var(--text-muted); margin-bottom: 2rem; }
+
+        /* DRAG & DROP ZONE */
+        .drop-zone {
+            border: 2px dashed #475569;
+            border-radius: 16px;
+            padding: 3rem 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            background: rgba(15, 23, 42, 0.3);
+        }
+
+        .drop-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+            transform: scale(1.02);
+        }
+
+        .drop-zone:hover { border-color: var(--text-muted); }
+        
+        .icon { font-size: 3rem; margin-bottom: 1rem; display: block; }
+        
+        #fileInput { display: none; }
+
+        /* LISTE FICHIERS */
+        #file-list {
+            margin-top: 1.5rem;
+            text-align: left;
+            max-height: 150px;
+            overflow-y: auto;
+            display: none;
+        }
+        .file-item {
+            background: rgba(255,255,255,0.05);
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* BOUTON */
+        button#send {
+            margin-top: 2rem;
+            width: 100%;
+            padding: 1rem;
+            font-size: 1rem;
+            font-weight: 600;
+            color: white;
+            background: var(--primary);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            display: none;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        button#send:hover { background: var(--primary-hover); transform: translateY(-1px); }
+        button:disabled { background: #475569; cursor: not-allowed; }
+
+        /* STATUS & PROGRESS */
+        #status { margin-top: 1.5rem; font-weight: 600; min-height: 24px; }
+        .progress-container {
+            width: 100%;
+            background: #334155;
+            height: 6px;
+            border-radius: 3px;
+            margin-top: 1.5rem;
+            overflow: hidden;
+            display: none;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), #e879f9);
+            width: 0%;
+            transition: width 0.2s;
+        }
+
+        .key-reset {
+            position: absolute; top: 20px; right: 20px;
+            font-size: 0.8rem; color: var(--text-muted);
+            cursor: pointer; opacity: 0.5; transition: 0.3s;
+        }
+        .key-reset:hover { opacity: 1; text-decoration: underline; }
+
+    </style>
+</head>
+<body>
+
+    <div class="key-reset" onclick="resetKey()">🔒 Reset Key</div>
+
+    <div class="container">
+        <h1>Studio AutoZik</h1>
+        <p class="subtitle">Déposez vos rushes, l'IA s'occupe du montage.</p>
+
+        <div class="drop-zone" id="dropZone">
+            <span class="icon">☁️</span>
+            <p><strong>Cliquez</strong> ou glissez vos vidéos ici</p>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 5px;">MP4, MOV (Min. 2 fichiers)</p>
+            <input type="file" id="fileInput" multiple accept="video/*">
+        </div>
+
+        <div id="file-list"></div>
+
+        <button id="send" onclick="envoyerVideos()">LANCER LA PRODUCTION 🚀</button>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileListDisplay = document.getElementById('file-list');
+        const btn = document.getElementById('send');
+        const status = document.getElementById('status');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+
+        let files = [];
+
+        // --- GESTION DRAG & DROP ---
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        function handleFiles(selectedFiles) {
+            files = Array.from(selectedFiles).filter(f => f.type.startsWith('video/'));
+            
+            if (files.length === 0) return;
+
+            fileListDisplay.innerHTML = '';
+            fileListDisplay.style.display = 'block';
+            
+            files.forEach(file => {
+                const div = document.createElement('div');
+                div.className = 'file-item';
+                div.innerHTML = `<span>${file.name}</span> <span style="color:#94a3b8">${(file.size/1024/1024).toFixed(1)} Mo</span>`;
+                fileListDisplay.appendChild(div);
+            });
+
+            if (files.length >= 2) {
+                btn.style.display = 'block';
+                status.innerHTML = `✅ ${files.length} vidéos prêtes.`;
+                status.style.color = "#4ade80";
+            } else {
+                status.innerHTML = "⚠️ Sélectionnez au moins 2 vidéos.";
+                status.style.color = "#fbbf24";
+                btn.style.display = 'none';
+            }
+        }
+
+        // --- GESTION API & SECURITÉ ---
+        function getApiKey() {
+            let key = localStorage.getItem("video_api_key");
+            if (!key) {
+                key = prompt("🔑 Mot de passe Studio requis :");
+                if (key) localStorage.setItem("video_api_key", key);
+            }
+            return key;
+        }
+
+        function resetKey() {
+            localStorage.removeItem("video_api_key");
+            location.reload();
+        }
+
+        function envoyerVideos() {
+            const API_KEY = getApiKey();
+            if (!API_KEY) return;
+
+            btn.disabled = true;
+            btn.innerHTML = "Envoi en cours...";
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            status.innerHTML = "📡 Connexion au serveur...";
+            status.style.color = "var(--text)";
+
+            const formData = new FormData();
+            files.forEach(file => formData.append('videos', file));
+
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const percent = (e.loaded / e.total) * 100;
+                    progressBar.style.width = percent + "%";
+                    status.innerHTML = `📤 Upload : ${Math.round(percent)}%`;
+                }
+            };
+
+            xhr.onload = () => {
+                progressContainer.style.display = 'none';
+                btn.disabled = false;
+                btn.innerHTML = "LANCER LA PRODUCTION 🚀";
+                
+                if (xhr.status === 200) {
+                    const res = JSON.parse(xhr.responseText);
+                    status.innerHTML = `🎉 <strong>SUCCÈS !</strong> Montage ID: ${res.taskId}<br><span style="font-size:0.8em; color:#94a3b8">Vous recevrez un email bientôt.</span>`;
+                    status.style.color = "#4ade80";
+                    files = [];
+                    fileListDisplay.style.display = 'none';
+                    btn.style.display = 'none';
+                } else if (xhr.status === 403) {
+                    status.innerHTML = "⛔ Mot de passe incorrect.";
+                    status.style.color = "#f87171";
+                    localStorage.removeItem("video_api_key");
+                } else {
+                    status.innerHTML = "❌ Erreur serveur.";
+                    status.style.color = "#f87171";
+                }
+            };
+
+            xhr.onerror = () => {
+                progressContainer.style.display = 'none';
+                status.innerHTML = "❌ Erreur connexion.";
+                btn.disabled = false;
+            };
+
+            // ⚠️ ATTENTION : Changez bien l'URL ici si besoin
+            xhr.open("POST",
